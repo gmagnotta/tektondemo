@@ -27,10 +27,9 @@ spec:
       workingDir: $(workspaces.source.path)
       script: |
         #!/usr/bin/env bash
-        IMAGE=$(params.image-path)
-        SHA="@$(params.image-sha)"
-        echo "replacing $IMAGE@$SHA"
-        sed -i "s/{{VERSION}}/$SHA/" helloservlet.yaml
+        IMAGE="$(params.image-path)@$(params.image-sha)"
+        echo "replacing $IMAGE"
+        sed -i "s|{{IMAGE}}|$IMAGE|g" helloservlet.yaml
 ---
 # Internal OCP registry is located at image-registry.openshift-image-registry.svc:5000
 apiVersion: tekton.dev/v1beta1
