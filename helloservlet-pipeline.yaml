@@ -9,11 +9,15 @@ spec:
     requests:
       storage: 1Gi
 ---
+# Internal OCP registry is located at image-registry.openshift-image-registry.svc:5000
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
   name: helloservlet-pipeline
 spec:
+  params:
+    - name: repo-url
+    - name: image-path
   workspaces:
     - name: myworkspace
   tasks:
@@ -26,7 +30,7 @@ spec:
           workspace: myworkspace
       params:
         - name: url
-          value: "https://github.com/gmagnotta/tektondemo"
+          value: $(params.repo-url)
         - name: deleteExisting
           value: "true"
     - name: build
@@ -41,7 +45,7 @@ spec:
         - name: TLSVERIFY
           value: "false"
         - name: IMAGE
-          value: image-registry.openshift-image-registry.svc:5000/helloservlet/helloservlet
+          value: $(params.image-path)
       workspaces:
         - name: source
           workspace: myworkspace
