@@ -22,7 +22,7 @@ spec:
             - containerPort: 8080
               protocol: TCP
           imagePullPolicy: IfNotPresent
-          image: image-registry.openshift-image-registry.svc:5000/helloservlet/helloservlet:latest
+          image: %image%
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst

@@ -1,0 +1,20 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: log
+spec:
+  params:
+    - name: image-path
+      type: string
+    - name: image-sha
+      type: string
+  workspaces:
+    - name: source
+  steps:
+    - name: log
+      image: registry.access.redhat.com/ubi8/ubi-minimal
+      workingDir: ${workspaces.source.path}
+      command:
+        - /bin/bash
+        - -c
+        - sed -i 's/%image%/${params.image-path}@${params.image-sha}/' helloservlet.yaml

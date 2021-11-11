@@ -20,6 +20,7 @@ spec:
     - name: image-path
   workspaces:
     - name: myworkspace
+    - name: empty
   tasks:
     - name: fetch-repository
       taskRef:
@@ -49,4 +50,27 @@ spec:
       workspaces:
         - name: source
           workspace: myworkspace
-
+    - name: log
+      taskRef:
+        name: log
+      runAfter:
+        - build
+      params:
+        - name: image-sha
+          value: "$(tasks.build.results.IMAGE_DIGEST)"
+        - name: image-path
+          value: "$(params.image-path)"
+    - name: deploy
+      taskRef:
+        name: kubernetes-actions
+      runAfter:
+        - log
+      workspaces:
+        - name: kubeconfig-dir
+          workspace: empty
+        - name: manifest-dir
+          workspace: myworkspace
+      params:
+        - name: script
+          value: |
+            kubectl apply -f helloservlet.yaml
