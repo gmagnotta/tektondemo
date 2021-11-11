@@ -1,0 +1,69 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: helloservlet
+  generation: 1
+  labels:
+    app: hello-servlet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-servlet
+  template:
+    metadata:
+      labels:
+        app: hello-servlet
+    spec:
+      containers:
+        - resources: {}
+          name: hello-servlet
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          imagePullPolicy: IfNotPresent
+          image: quay.io/redhat_emp1/hello-servlet:latest
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: hello-servlet
+  labels:
+    app: hello-servlet
+spec:
+  ports:
+    - name: 8080-tcp
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: hello-servlet
+  type: ClusterIP
+  sessionAffinity: None
+---
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: hello-servlet
+  labels:
+    app: hello-servlet
+spec:
+  to:
+    kind: Service
+    name: hello-servlet
+    weight: 100
+  port:
+    targetPort: 8080-tcp
+  wildcardPolicy: None

@@ -1,0 +1,37 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: helloservlet-pipeline
+spec:
+  workspaces:
+    - name: myworkspace
+  tasks:
+    - name: fetch-repository
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      workspaces:
+        - name: output
+          workspace: myworkspace
+      params:
+        - name: url
+          value: "https://github.com/gmagnotta/tektondemo"
+        - name: deleteExisting
+          value: "true"
+    - name: build
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      runAfter:
+        - fetch-repository
+      params:
+        - name: CONTEXT
+          value: .
+        - name: TLSVERIFY
+          value: "false"
+        - name: IMAGE
+          value: image-registry.openshift-image-registry.svc:5000/helloservlet/helloservlet
+      workspaces:
+        - name: source
+          workspace: myworkspace
+
