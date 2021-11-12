@@ -1,7 +1,18 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: tekton-pvc
+  name: source-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: m2-pvc
 spec:
   accessModes:
     - ReadWriteOnce
@@ -31,6 +42,24 @@ spec:
         echo "replacing $IMAGE"
         sed -i "s|{{IMAGE}}|$IMAGE|g" helloservlet.yaml
 ---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: mavenbuild
+spec:
+  workspaces:
+    - name: source
+    - name: m2
+      mountPath: /home/jboss/.m2/repository
+  steps:
+    - name: build
+      image: registry.access.redhat.com/ubi8/openjdk-11
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        echo "Start maven build"
+        mvn -Duser.home=/home/jboss clean package
+---
 # Internal OCP registry is located at image-registry.openshift-image-registry.svc:5000
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
@@ -42,6 +71,7 @@ spec:
     - name: image-path
   workspaces:
     - name: myworkspace
+    - name: mavenworkspace
     - name: empty
   tasks:
     - name: fetch-repository
@@ -56,12 +86,22 @@ spec:
           value: $(params.repo-url)
         - name: deleteExisting
           value: "true"
+    - name: compile
+      taskRef:
+        name: mavenbuild
+      runAfter:
+        - fetch-repository
+      workspaces:
+        - name: source
+          workspace: myworkspace
+        - name: m2
+          workspace: mavenworkspace
     - name: build
       taskRef:
         name: buildah
         kind: ClusterTask
       runAfter:
-        - fetch-repository
+        - compile
       params:
         - name: CONTEXT
           value: .
