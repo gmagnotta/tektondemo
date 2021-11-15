@@ -1,0 +1,63 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: event-binding
+spec:
+  params:
+    - name: git-repository-url
+      value: $(body.repository.url)
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: push-trigger-template
+spec:
+  params:
+  - name: git-repository-url
+    description: The git repository url
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: helloservlet-devpipeline-
+    spec:
+      pipelineRef:
+        name: helloservlet-devpipeline
+      serviceAccountName: pipeline
+      params:
+      - name: repo-url
+        value: "https://github.com/gmagnotta/tektondemo"
+      - name: image-path
+        value: "image-registry.openshift-image-registry.svc:5000/helloservlet/helloservlet"
+      workspaces:
+        - name: src
+          persistentVolumeClaim:
+            claimName: helloservlet-source-pvc
+        - name: m2
+          persistentVolumeClaim:
+            claimName: helloservlet-m2-pvc
+        - name: varlibcontainers
+          persistentVolumeClaim:
+            claimName: helloservlet-varlibcontainers-pvc
+        - emptyDir: {}
+          name: empty
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: listener
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - name: trigger
+      interceptors:
+        - github:
+            secretRef:
+              secretName: git-secret
+              secretKey: secretToken
+            eventTypes:
+              - push
+      bindings:
+        - ref: event-binding    
+      template:
+        name: push-trigger-template
