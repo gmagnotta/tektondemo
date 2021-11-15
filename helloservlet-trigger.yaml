@@ -26,7 +26,7 @@ spec:
       serviceAccountName: pipeline
       params:
       - name: repo-url
-        value: "https://github.com/gmagnotta/tektondemo"
+        value: $(tt.params.git-repository-url)
       - name: image-path
         value: "image-registry.openshift-image-registry.svc:5000/helloservlet/helloservlet"
       workspaces:
