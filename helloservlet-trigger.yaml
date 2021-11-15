@@ -61,3 +61,12 @@ spec:
         - ref: event-binding    
       template:
         name: push-trigger-template
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: git-secret
+data:
+  secretToken: WnFaamFCQ1JzaDRSY3d3WUpBWDg1RkNBNytvRFdyRy8=
+type: Opaque
+
