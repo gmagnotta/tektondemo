@@ -214,7 +214,7 @@ spec:
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: helloservlet-pipeline
+  name: helloservlet-devpipeline
 spec:
   params:
     - name: repo-url
@@ -291,3 +291,30 @@ spec:
         - name: script
           value: |
             kubectl apply -f helloservlet.yaml
+---
+# Internal OCP registry is located at image-registry.openshift-image-registry.svc:5000
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: helloservlet-releasepipeline
+spec:
+  params:
+    - name: src-image-path
+    - name: dst-image-path
+  workspaces:
+    - name: empty
+  tasks:
+    - name: copy
+      taskRef:
+        name: skopeo-copy
+        kind: ClusterTask
+      workspaces:
+        - name: images-url
+          workspace: empty
+      params:
+        - name: srcImageURL
+          value: "docker://$(params.src-image-path)"
+        - name: destImageURL
+          value: "docker://$(params.dst-image-path)"
+        - name: srcTLSverify
+          value: "false"
