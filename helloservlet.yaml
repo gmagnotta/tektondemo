@@ -14,6 +14,8 @@ spec:
     metadata:
       labels:
         app: hello-servlet
+      annotations:
+        gitcommit: {{COMMIT}}
     spec:
       containers:
         - resources:
@@ -48,6 +50,8 @@ metadata:
   name: hello-servlet
   labels:
     app: hello-servlet
+  annotations:
+    gitcommit: {{COMMIT}}
 spec:
   ports:
     - name: 8080-tcp
@@ -65,6 +69,8 @@ metadata:
   name: hello-servlet
   labels:
     app: hello-servlet
+  annotations:
+    gitcommit: {{COMMIT}}
 spec:
   to:
     kind: Service

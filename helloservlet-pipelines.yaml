@@ -47,6 +47,8 @@ spec:
     - name: deployment-file
       type: string
       default: deployment.yaml
+    - name: commit
+      type: string
   workspaces:
     - name: source
   steps:
@@ -56,8 +58,10 @@ spec:
       script: |
         #!/usr/bin/env bash
         IMAGE="$(params.image-path)@$(params.image-sha)"
+        COMMIT="$(params.commit)"
         echo "Using image: $IMAGE"
         sed -i "s|{{IMAGE}}|$IMAGE|g" $(params.deployment-file)
+        sed -i "s|{{COMMIT}}|$COMMIT|g" $(params.deployment-file)
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Task
@@ -277,6 +281,8 @@ spec:
           value: "$(params.image-path)"
         - name: deployment-file
           value: helloservlet.yaml
+        - name: commit
+          value: "$(tasks.fetch-repository.results.commit)"
     - name: deploy
       taskRef:
         name: kubernetes-actions
