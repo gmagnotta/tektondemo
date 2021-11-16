@@ -16,7 +16,13 @@ spec:
         app: hello-servlet
     spec:
       containers:
-        - resources: {}
+        - resources:
+            requests:
+              cpu: "500m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
           name: hello-servlet
           ports:
             - containerPort: 8080
