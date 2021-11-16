@@ -214,6 +214,28 @@ spec:
       args:
         - "$(params.args)"
 ---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: get-image-path
+spec:
+  params:
+    - name: deployment-name
+      type: string
+  results:
+    - name: imagepath
+      description: the image where container was pushed to.
+  steps:
+    - name: replace
+      image: gcr.io/cloud-builders/kubectl@sha256:8ab94be8b2b4f3d117f02d868b39540fddd225447abf4014f7ba4765cb39f753
+      script: |
+        #!/usr/bin/env bash
+        IMAGE_PATH=$(kubectl get deployment $(params.deployment-name) -o jsonpath='{.metadata.annotations.imagepath}')
+
+        echo -n "$IMAGE_PATH" > $(results.imagepath.path)
+
+        echo "Read image path is $IMAGE_PATH"
+---
 # Internal OCP registry is located at image-registry.openshift-image-registry.svc:5000
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
@@ -305,21 +327,28 @@ metadata:
   name: helloservlet-releasepipeline
 spec:
   params:
-    - name: src-image-path
     - name: dst-image-path
   workspaces:
     - name: empty
   tasks:
+    - name: getimagepath
+      taskRef:
+        name: get-image-path
+      params:
+        - name: deployment-name
+          value: "helloservlet"
     - name: copy
       taskRef:
         name: skopeo-copy
         kind: ClusterTask
+      runAfter:
+        - getimagepath
       workspaces:
         - name: images-url
           workspace: empty
       params:
         - name: srcImageURL
-          value: "docker://$(params.src-image-path)"
+          value: "docker://$(tasks.getimagepath.results.imagepath)"
         - name: destImageURL
           value: "docker://$(params.dst-image-path)"
         - name: srcTLSverify
