@@ -5,6 +5,8 @@ metadata:
   generation: 1
   labels:
     app: hello-servlet
+  annotations:
+    gitcommit: {{COMMIT}}
 spec:
   replicas: 1
   selector:
@@ -14,8 +16,6 @@ spec:
     metadata:
       labels:
         app: hello-servlet
-      annotations:
-        gitcommit: {{COMMIT}}
     spec:
       containers:
         - resources:
