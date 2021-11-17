@@ -39,8 +39,6 @@ spec:
   params:
     - name: image-path
       type: string
-    - name: image-sha
-      type: string
     - name: CONTEXT
       type: string
       default: .
@@ -57,7 +55,7 @@ spec:
       workingDir: $(workspaces.source.path)/$(params.CONTEXT)
       script: |
         #!/usr/bin/env bash
-        IMAGE="$(params.image-path)@$(params.image-sha)"
+        IMAGE="$(params.image-path)"
         COMMIT="$(params.commit)"
         echo "Using image: $IMAGE"
         sed -i "s|{{IMAGE}}|$IMAGE|g" $(params.deployment-file)
@@ -225,6 +223,8 @@ spec:
   results:
     - name: imagepath
       description: the image where container was pushed to.
+    - name: imagecommit
+      description: the git commit.
   steps:
     - name: replace
       image: gcr.io/cloud-builders/kubectl@sha256:8ab94be8b2b4f3d117f02d868b39540fddd225447abf4014f7ba4765cb39f753
@@ -234,7 +234,11 @@ spec:
 
         echo -n "$IMAGE_PATH" > $(results.imagepath.path)
 
-        echo "Read image path is $IMAGE_PATH"
+        COMMIT=$(kubectl get deployment $(params.deployment-name) -o jsonpath='{.metadata.annotations.gitcommit}')
+
+        echo -n "$COMMIT" > $(results.imagecommit.path)
+
+        echo "Read image path is $IMAGE_PATH and commit is $COMMIT"
 ---
 # Internal OCP registry is located at image-registry.openshift-image-registry.svc:5000
 apiVersion: tekton.dev/v1beta1
@@ -297,10 +301,8 @@ spec:
         - name: source
           workspace: src
       params:
-        - name: image-sha
-          value: "$(tasks.build.results.IMAGE_DIGEST)"
         - name: image-path
-          value: "$(params.image-path)"
+          value: "$(params.image-path)@$(tasks.build.results.IMAGE_DIGEST)"
         - name: deployment-file
           value: helloservlet.yaml
         - name: commit
@@ -319,6 +321,28 @@ spec:
         - name: script
           value: |
             kubectl apply -f helloservlet.yaml
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: helloservlet-promotetointegrationpipeline
+spec:
+  workspaces:
+    - name: src
+    - name: empty
+  tasks:
+    - name: deploy
+      taskRef:
+        name: kubernetes-actions
+      workspaces:
+        - name: kubeconfig-dir
+          workspace: empty
+        - name: manifest-dir
+          workspace: src
+      params:
+        - name: script
+          value: |
+            kubectl apply -f helloservlet.yaml --namespace=integration
 ---
 # Internal OCP registry is located at image-registry.openshift-image-registry.svc:5000
 apiVersion: tekton.dev/v1beta1

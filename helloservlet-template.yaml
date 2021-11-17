@@ -23,6 +23,8 @@ objects:
       metadata:
         labels:
           app: hello-servlet
+        annotations:
+          kubernetes.io/change-cause: ${CAUSE}
       spec:
         containers:
           - name: hello-servlet
@@ -83,4 +85,7 @@ objects:
 parameters:
 - description: Container image to use
   name: IMAGE
+  required: true
+- description: Description of this installation
+  name: CAUSE
   required: true
