@@ -31,6 +31,13 @@ spec:
     requests:
       storage: 1Gi
 ---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: helloservlet
+data:
+  dest-image-path: 'destinationpath:version'
+---
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
@@ -240,6 +247,28 @@ spec:
 
         echo "Read image path is $IMAGE_PATH and commit is $COMMIT"
 ---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: get-push-path
+spec:
+  params:
+    - name: configmap-name
+      type: string
+  results:
+    - name: pushpath
+      description: the image where container should be pushed to.
+  steps:
+    - name: replace
+      image: gcr.io/cloud-builders/kubectl@sha256:8ab94be8b2b4f3d117f02d868b39540fddd225447abf4014f7ba4765cb39f753
+      script: |
+        #!/usr/bin/env bash
+        IMAGE_PUSH_PATH=$(kubectl get configmap $(params.configmap-name) -o jsonpath='{.data.dest-image-path}')
+
+        echo -n "$IMAGE_PUSH_PATH" > $(results.pushpath.path)
+
+        echo "Image should be pushed to $IMAGE_PUSH_PATH"
+---
 # Internal OCP registry is located at image-registry.openshift-image-registry.svc:5000
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
@@ -350,8 +379,6 @@ kind: Pipeline
 metadata:
   name: helloservlet-releasepipeline
 spec:
-  params:
-    - name: dst-image-path
   workspaces:
     - name: empty
   tasks:
@@ -361,12 +388,20 @@ spec:
       params:
         - name: deployment-name
           value: "helloservlet"
+    - name: getpushpath
+      taskRef:
+        name: get-push-path
+      runAfter:
+        - getimagepath
+      params:
+        - name: configmap-name
+          value: "helloservlet"
     - name: copy
       taskRef:
         name: skopeo-copy
         kind: ClusterTask
       runAfter:
-        - getimagepath
+        - getpushpath
       workspaces:
         - name: images-url
           workspace: empty
@@ -374,6 +409,6 @@ spec:
         - name: srcImageURL
           value: "docker://$(tasks.getimagepath.results.imagepath)"
         - name: destImageURL
-          value: "docker://$(params.dst-image-path)"
+          value: "docker://$(tasks.getpushpath.results.pushpath)"
         - name: srcTLSverify
           value: "false"
