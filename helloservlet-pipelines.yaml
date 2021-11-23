@@ -31,13 +31,13 @@ spec:
     requests:
       storage: 1Gi
 ---
-kind: ConfigMap
-apiVersion: v1
-metadata:
-  name: helloservlet
-data:
-  dest-image-path: 'destinationpath:version'
----
+#kind: ConfigMap
+#apiVersion: v1
+#metadata:
+#  name: helloservlet
+#data:
+#  dest-image-path: 'destinationpath:version'
+#---
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
@@ -222,6 +222,32 @@ spec:
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
+  name: openshift-actions
+spec:
+  description: >-
+    This task runs oc client
+  workspaces:
+    - name: source
+  params:
+    - name: script
+      description: The oc CLI script to run
+      type: string
+      default: "oc help"
+    - name: image
+      default: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+      description: Oc image
+  steps:
+    - name: oc
+      image: $(params.image)
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+
+        $(params.script)
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
   name: get-image-path
 spec:
   params:
@@ -234,18 +260,40 @@ spec:
       description: the git commit.
   steps:
     - name: replace
-      image: gcr.io/cloud-builders/kubectl@sha256:8ab94be8b2b4f3d117f02d868b39540fddd225447abf4014f7ba4765cb39f753
+      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
       script: |
         #!/usr/bin/env bash
-        IMAGE_PATH=$(kubectl get deployment $(params.deployment-name) -o jsonpath='{.metadata.annotations.imagepath}')
+        IMAGE_PATH=$(oc get deployment $(params.deployment-name) -o jsonpath='{.spec.template.spec.containers[0].image}')
 
         echo -n "$IMAGE_PATH" > $(results.imagepath.path)
 
-        COMMIT=$(kubectl get deployment $(params.deployment-name) -o jsonpath='{.metadata.annotations.gitcommit}')
+        COMMIT=$(oc get deployment $(params.deployment-name) -o jsonpath='{.spec.template.metadata.annotations.gitcommit}')
 
         echo -n "$COMMIT" > $(results.imagecommit.path)
 
         echo "Read image path is $IMAGE_PATH and commit is $COMMIT"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: get-image-path2
+spec:
+  params:
+    - name: configmap-name
+      type: string
+  results:
+    - name: imagepath
+      description: the image where container was pushed to.
+  steps:
+    - name: replace
+      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+      script: |
+        #!/usr/bin/env bash
+        IMAGE_PATH=$(oc get configmap $(params.configmap-name) -o jsonpath='{.data.dest-image-path}')
+
+        echo -n "$IMAGE_PATH" > $(results.imagepath.path)
+
+        echo "Read image path is $IMAGE_PATH"
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Task
@@ -273,11 +321,10 @@ spec:
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: helloservlet-devpipeline
+  name: helloservlet-dev-pipeline
 spec:
   params:
     - name: repo-url
-    - name: image-path
   workspaces:
     - name: src
     - name: m2
@@ -306,79 +353,75 @@ spec:
           workspace: src
         - name: m2
           workspace: m2
+    - name: get-image-path
+      taskRef:
+        name: get-image-path2
+      runAfter:
+        - compile
+      params:
+        - name: configmap-name
+          value: "helloservlet"
     - name: build
       taskRef:
         name: buildah
       runAfter:
-        - compile
+        - get-image-path
       params:
         - name: TLSVERIFY
           value: "false"
         - name: IMAGE
-          value: $(params.image-path)
+          value: $(tasks.get-image-path.results.imagepath)
       workspaces:
         - name: source
           workspace: src
         - name: varlibcontainers
           workspace: varlibcontainers
-    - name: prepare-deploy
+    - name: deploy
       taskRef:
-        name: prepare-deploy
+        name: openshift-actions
       runAfter:
         - build
       workspaces:
         - name: source
           workspace: src
       params:
-        - name: image-path
-          value: "$(params.image-path)@$(tasks.build.results.IMAGE_DIGEST)"
-        - name: deployment-file
-          value: helloservlet.yaml
-        - name: commit
-          value: "$(tasks.fetch-repository.results.commit)"
-    - name: deploy
-      taskRef:
-        name: kubernetes-actions
-      runAfter:
-        - prepare-deploy
-      workspaces:
-        - name: kubeconfig-dir
-          workspace: empty
-        - name: manifest-dir
-          workspace: src
-      params:
         - name: script
           value: |
-            kubectl apply -f helloservlet.yaml
+            oc process -p IMAGE=$(tasks.get-image-path.results.imagepath)@$(tasks.build.results.IMAGE_DIGEST) -p CAUSE=$(tasks.fetch-repository.results.commit) -f helloservlet-template.yaml | oc apply -f -
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: helloservlet-promotetointegrationpipeline
+  name: helloservlet-promote-pipeline
 spec:
   workspaces:
     - name: src
-    - name: empty
   tasks:
+    - name: get-image-path
+      taskRef:
+        name: get-image-path
+      params:
+        - name: deployment-name
+          value: "helloservlet"
     - name: deploy
       taskRef:
-        name: kubernetes-actions
+        name: openshift-actions
       workspaces:
-        - name: kubeconfig-dir
-          workspace: empty
-        - name: manifest-dir
+        - name: source
           workspace: src
       params:
         - name: script
           value: |
-            kubectl apply -f helloservlet.yaml --namespace=integration
+            oc process -p IMAGE=$(tasks.get-image-path.results.imagepath)@$(tasks.get-image-path.results.imagecommit) -p CAUSE=$(tasks.get-image-path.results.imagecommit) -f helloservlet-template.yaml | oc apply --namespace=integration -f - 
 ---
 # Internal OCP registry is located at image-registry.openshift-image-registry.svc:5000
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: helloservlet-releasepipeline
+  name: helloservlet-release-pipeline
 spec:
+  params:
+    - name: image-tag
   workspaces:
     - name: empty
   tasks:
@@ -409,6 +452,6 @@ spec:
         - name: srcImageURL
           value: "docker://$(tasks.getimagepath.results.imagepath)"
         - name: destImageURL
-          value: "docker://$(tasks.getpushpath.results.pushpath)"
+          value: "docker://$(tasks.getpushpath.results.pushpath):$(params.image-tag)"
         - name: srcTLSverify
           value: "false"

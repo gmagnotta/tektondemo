@@ -25,6 +25,7 @@ objects:
           app: hello-servlet
         annotations:
           kubernetes.io/change-cause: ${CAUSE}
+          gitcommit: ${CAUSE}
       spec:
         containers:
           - name: hello-servlet
