@@ -19,16 +19,14 @@ spec:
   - apiVersion: tekton.dev/v1beta1
     kind: PipelineRun
     metadata:
-      generateName: helloservlet-devpipeline-
+      generateName: helloservlet-dev-pipeline-
     spec:
       pipelineRef:
-        name: helloservlet-devpipeline
+        name: helloservlet-dev-pipeline
       serviceAccountName: pipeline
       params:
       - name: repo-url
         value: $(tt.params.git-repository-url)
-      - name: image-path
-        value: "image-registry.openshift-image-registry.svc:5000/helloservlet/helloservlet"
       workspaces:
         - name: src
           persistentVolumeClaim:
