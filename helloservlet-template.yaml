@@ -40,7 +40,7 @@ objects:
               limits:
                 cpu: "1000m"
                 memory: "512Mi"
-            imagePullPolicy: IfNotPresent
+            imagePullPolicy: Always
         restartPolicy: Always
         terminationGracePeriodSeconds: 30
         dnsPolicy: ClusterFirst
