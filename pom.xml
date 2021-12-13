@@ -75,13 +75,13 @@
 
     <distributionManagement>
         <repository>
-            <id>releases</id>
+            <id>nexus</id>
             <name>Releases</name>
             <url>${env.NEXUS_HOST}/repository/maven-releases/</url>
         </repository>
         <snapshotRepository>
-            <id>snapshots</id>
-            <name>Snapshots</name>
+            <id>nexus</id>
+            <name>Snapshot</name>
             <url>${env.NEXUS_HOST}/repository/maven-snapshots/</url>
         </snapshotRepository>
     </distributionManagement>
