@@ -4,7 +4,7 @@
     <groupId>com.magnotta</groupId>
     <artifactId>helloservlet</artifactId>
     <packaging>war</packaging>
-    <version>1.1-SNAPSHOT</version>
+    <version>1.1</version>
     <properties>
         <maven.compiler.parameters>true</maven.compiler.parameters>
         <maven.compiler.source>11</maven.compiler.source>
@@ -90,7 +90,7 @@
         <connection>scm:git:git@github.com:gmagnotta/tektondemo.git</connection>
         <developerConnection>scm:git:git@github.com:gmagnotta/tektondemo.git</developerConnection>
         <url>https://github.com:gmagnotta/tektondemo</url>
-      <tag>HEAD</tag>
+      <tag>helloservlet-1.1</tag>
   </scm>
 
 </project>
