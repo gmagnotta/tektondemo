@@ -73,4 +73,23 @@
         </plugins>
     </build>
 
+    <distributionManagement>
+        <repository>
+            <id>releases</id>
+            <name>Releases</name>
+            <url>${env.NEXUS_HOST}/repository/maven-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>snapshots</id>
+            <name>Snapshots</name>
+            <url>${env.NEXUS_HOST}/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <scm>
+        <connection>scm:git:git@github.com:gmagnotta/tektondemo.git</connection>
+        <developerConnection>scm:git:git@github.com:gmagnotta/tektondemo.git</developerConnection>
+        <url>https://github.com:gmagnotta/tektondemo</url>
+    </scm>
+
 </project>
