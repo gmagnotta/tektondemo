@@ -18,7 +18,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 4Gi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -29,247 +29,26 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 4Gi
 ---
 kind: ConfigMap
 apiVersion: v1
 metadata:
-  name: helloservlet
+  name: helloservlet-pipelineconfig
 data:
   dev-image-path: 'image-registry.openshift-image-registry.svc:5000/helloservlet/helloservlet'
   release-image-path: 'quay.io/gmagnotta/helloservlet'
 ---
-apiVersion: tekton.dev/v1beta1
-kind: Task
+kind: ConfigMap
+apiVersion: v1
 metadata:
-  name: mavenbuild
-spec:
-  params:
-    - name: CONTEXT
-      type: string
-      default: .
-    - name: MVN_ARGS
-      type: string
-      default: "clean package"
-  workspaces:
-    - name: source
-    - name: m2
-      mountPath: /home/jboss/.m2/repository
-  steps:
-    - name: build
-      image: registry.access.redhat.com/ubi8/openjdk-11
-      workingDir: $(workspaces.source.path)/$(params.CONTEXT)
-      script: |
-        #!/usr/bin/env bash
-        echo "Start maven build"
-        mvn -Duser.home=/home/jboss $(params.MVN_ARGS)
----
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: buildah
-spec:
-  params:
-    - description: Reference of the image buildah will produce.
-      name: IMAGE
-      type: string
-    - default: >-
-        registry.redhat.io/rhel8/buildah@sha256:180c4d9849b6ab0e5465d30d4f3a77765cf0d852ca1cb1efb59d6e8c9f90d467
-      description: The location of the buildah builder image.
-      name: BUILDER_IMAGE
-      type: string
-    - default: overlay
-      description: Set buildah storage driver
-      name: STORAGE_DRIVER
-      type: string
-    - default: ./Dockerfile
-      description: Path to the Dockerfile to build.
-      name: DOCKERFILE
-      type: string
-    - default: .
-      description: Path to the directory to use as context.
-      name: CONTEXT
-      type: string
-    - default: 'true'
-      description: >-
-        Verify the TLS on the registry endpoint (for push/pull to a non-TLS
-        registry)
-      name: TLSVERIFY
-      type: string
-    - default: oci
-      description: 'The format of the built container, oci or docker'
-      name: FORMAT
-      type: string
-    - default: ''
-      description: Extra parameters passed for the build command when building images.
-      name: BUILD_EXTRA_ARGS
-      type: string
-    - default: ''
-      description: Extra parameters passed for the push command when pushing images.
-      name: PUSH_EXTRA_ARGS
-      type: string
-  results:
-    - description: Digest of the image just built.
-      name: IMAGE_DIGEST
-  workspaces:
-    - name: source
-    - name: varlibcontainers
-      mountPath: /var/lib/containers
-  steps:
-    - image: $(params.BUILDER_IMAGE)
-      name: build
-      resources: {}
-      script: |
-        buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
-          $(params.BUILD_EXTRA_ARGS) --format=$(params.FORMAT) \
-          --tls-verify=$(params.TLSVERIFY) --no-cache \
-          -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
-      securityContext:
-        privileged: true
-      workingDir: $(workspaces.source.path)
-    - image: $(params.BUILDER_IMAGE)
-      name: push
-      resources: {}
-      script: |
-        buildah --storage-driver=$(params.STORAGE_DRIVER) push \
-          $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
-          --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
-          docker://$(params.IMAGE)
-      securityContext:
-        privileged: true
-      workingDir: $(workspaces.source.path)
-    - image: $(params.BUILDER_IMAGE)
-      name: digest-to-results
-      resources: {}
-      script: >-
-        cat $(workspaces.source.path)/image-digest | tee
-        /tekton/results/IMAGE_DIGEST
----
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: openshift-actions
-spec:
-  description: >-
-    This task runs oc client
-  workspaces:
-    - name: source
-  params:
-    - name: script
-      description: The oc CLI script to run
-      type: string
-      default: "oc help"
-    - name: image
-      default: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
-      description: Oc image
-  steps:
-    - name: oc
-      image: $(params.image)
-      workingDir: $(workspaces.source.path)
-      script: |
-        #!/usr/bin/env bash
-
-        $(params.script)
----
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: get-dev-image-built
-spec:
-  params:
-    - name: deployment-name
-      type: string
-  results:
-    - name: image
-      description: the image where container was pushed to.
-    - name: commit
-      description: the git commit.
-  steps:
-    - name: oc
-      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
-      script: |
-        #!/usr/bin/env bash
-        IMAGE=$(oc get deployment $(params.deployment-name) -o jsonpath='{.spec.template.spec.containers[0].image}')
-
-        echo -n "$IMAGE" > $(results.image.path)
-
-        COMMIT=$(oc get deployment $(params.deployment-name) -o jsonpath='{.spec.template.metadata.annotations.gitcommit}')
-
-        echo -n "$COMMIT" > $(results.commit.path)
-
-        echo "Read image is $IMAGE and commit is $COMMIT"
----
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: get-int-image-built
-spec:
-  params:
-    - name: deployment-name
-      type: string
-  results:
-    - name: image
-      description: the image where container was pushed to.
-    - name: commit
-      description: the git commit.
-  steps:
-    - name: oc
-      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
-      script: |
-        #!/usr/bin/env bash
-        IMAGE=$(oc get deployment $(params.deployment-name) -o jsonpath='{.spec.template.spec.containers[0].image}' --namespace=integration)
-
-        echo -n "$IMAGE" > $(results.image.path)
-
-        COMMIT=$(oc get deployment $(params.deployment-name) -o jsonpath='{.spec.template.metadata.annotations.gitcommit}' --namespace=integration)
-
-        echo -n "$COMMIT" > $(results.commit.path)
-
-        echo "Read image is $IMAGE and commit is $COMMIT"
----
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: get-dev-path
-spec:
-  params:
-    - name: configmap-name
-      type: string
-  results:
-    - name: path
-      description: the dev image where we need to push to.
-  steps:
-    - name: oc
-      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
-      script: |
-        #!/usr/bin/env bash
-        IMAGE_PATH=$(oc get configmap $(params.configmap-name) -o jsonpath='{.data.dev-image-path}')
-
-        echo -n "$IMAGE_PATH" > $(results.path.path)
-
-        echo "Read path is $IMAGE_PATH"
----
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: get-release-image-path
-spec:
-  params:
-    - name: configmap-name
-      type: string
-  results:
-    - name: release-image-path
-      description: the image where container should be pushed to.
-  steps:
-    - name: oc
-      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
-      script: |
-        #!/usr/bin/env bash
-        RELEASE_IMAGE_PATH=$(oc get configmap $(params.configmap-name) -o jsonpath='{.data.release-image-path}')
-
-        echo -n "$RELEASE_IMAGE_PATH" > $(results.release-image-path.path)
-
-        echo "Image should be pushed to $RELEASE_IMAGE_PATH"
+  name: helloservlet-s2ienvironment
+data:
+  MAVEN_REPOS: "nexus"
+  NEXUS_MAVEN_REPO_ID: "nexus"
+  NEXUS_MAVEN_REPO_URL: "http://nexus3:8081"
+  MAVEN_SETTINGS_XML: "/home/jboss/.m2/settings.xml"
+  CUSTOM_INSTALL_DIRECTORIES: "extensions"
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
@@ -287,7 +66,6 @@ spec:
     - name: fetch-repository
       taskRef:
         name: git-clone
-        kind: ClusterTask
       workspaces:
         - name: output
           workspace: src
@@ -296,39 +74,43 @@ spec:
           value: $(params.repo-url)
         - name: deleteExisting
           value: "true"
-    - name: compile
-      taskRef:
-        name: mavenbuild
-      runAfter:
-        - fetch-repository
-      workspaces:
-        - name: source
-          workspace: src
-        - name: m2
-          workspace: m2
     - name: get-dev-path
       taskRef:
-        name: get-dev-path
+        name: get-configmap-value
       runAfter:
-        - compile
+        - fetch-repository
       params:
-        - name: configmap-name
-          value: "helloservlet"
+        - name: CONFIGMAP-NAME
+          value: "helloservlet-pipelineconfig"
+        - name: CONFIGMAP-KEY
+          value: "dev-image-path"
     - name: build
       taskRef:
-        name: buildah
+        name: buildah-s2i
       runAfter:
         - get-dev-path
-      params:
-        - name: TLSVERIFY
-          value: "false"
-        - name: IMAGE
-          value: $(tasks.get-dev-path.results.path)
       workspaces:
         - name: source
           workspace: src
         - name: varlibcontainers
           workspace: varlibcontainers
+        - name: artifacts
+          workspace: m2
+      params:
+        - name: S2I_IMAGE
+          value: "registry.redhat.io/jboss-webserver-5/jws56-openjdk11-openshift-rhel8"
+        - name: TLSVERIFY
+          value: "false"
+        - name: IMAGE
+          value: $(tasks.get-dev-path.results.VALUE)
+        - name: CONTEXT
+          value: "."
+        - name: S2I_ENVIRONMENT
+          value: "helloservlet-s2ienvironment"
+        - name: INCREMENTAL
+          value: "true"
+        - name: ENVIRONMENTS
+          value: ""
     - name: deploy
       taskRef:
         name: openshift-actions
@@ -338,36 +120,56 @@ spec:
         - name: source
           workspace: src
       params:
-        - name: script
+        - name: CONTEXT
+          value: "."
+        - name: SCRIPT
           value: |
-            oc process -p IMAGE=$(tasks.get-dev-path.results.path)@$(tasks.build.results.IMAGE_DIGEST) -p CAUSE=$(tasks.fetch-repository.results.commit) -f helloservlet-template.yaml | oc apply -f -
+            oc process -p IMAGE=$(tasks.get-dev-path.results.VALUE)@$(tasks.build.results.IMAGE_DIGEST) -p CAUSE=$(tasks.fetch-repository.results.commit) -f helloservlet-template.yaml | oc apply -f -
+    - name: update-built-image
+      taskRef:
+        name: set-configmap-value
+      runAfter:
+        - deploy
+      params:
+        - name: CONFIGMAP-NAME
+          value: "helloservlet-pipelineconfig"
+        - name: CONFIGMAP-KEY
+          value: "dev-latest-built-image"
+        - name: VALUE
+          value: $(tasks.get-dev-path.results.VALUE)@$(tasks.build.results.IMAGE_DIGEST)
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
   name: helloservlet-promote-pipeline
 spec:
+  params:
+    - name: dest-namespace
   workspaces:
     - name: src
   tasks:
-    - name: get-dev-image-built
+    - name: get-image-built
       taskRef:
-        name: get-dev-image-built
+        name: get-configmap-value
       params:
-        - name: deployment-name
-          value: "helloservlet"
+        - name: CONFIGMAP-NAME
+          value: "helloservlet-pipelineconfig"
+        - name: CONFIGMAP-KEY
+          value: "dev-latest-built-image"
     - name: deploy
       taskRef:
         name: openshift-actions
       runAfter:
-        - get-dev-image-built
+        - get-image-built
       workspaces:
         - name: source
           workspace: src
       params:
-        - name: script
+        - name: CONTEXT
+          value: "."
+        - name: SCRIPT
           value: |
-            oc process -p IMAGE=$(tasks.get-dev-image-built.results.image) -p CAUSE=$(tasks.get-dev-image-built.results.commit) -f helloservlet-template.yaml | oc apply --namespace=integration -f - 
+            oc process -p IMAGE=$(tasks.get-image-built.results.VALUE) -p CAUSE=$(tasks.get-image-built.results.VALUE) -f helloservlet-template.yaml | oc apply --namespace=$(params.dest-namespace) -f - 
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
@@ -379,33 +181,38 @@ spec:
   workspaces:
     - name: empty
   tasks:
-    - name: get-int-image-built
+    - name: get-image-built
       taskRef:
-        name: get-int-image-built
+        name: get-configmap-value
       params:
-        - name: deployment-name
-          value: "helloservlet"
+        - name: CONFIGMAP-NAME
+          value: "helloservlet-pipelineconfig"
+        - name: CONFIGMAP-KEY
+          value: "dev-latest-built-image"
     - name: getpushpath
       taskRef:
-        name: get-release-image-path
-      runAfter:
-        - get-int-image-built
+        name: get-configmap-value
       params:
-        - name: configmap-name
-          value: "helloservlet"
+        - name: CONFIGMAP-NAME
+          value: "helloservlet-pipelineconfig"
+        - name: CONFIGMAP-KEY
+          value: "release-image-path"
     - name: copy
       taskRef:
         name: skopeo-copy
         kind: ClusterTask
       runAfter:
         - getpushpath
+        - get-image-built
       workspaces:
         - name: images-url
           workspace: empty
       params:
         - name: srcImageURL
-          value: "docker://$(tasks.get-int-image-built.results.image)"
+          value: "docker://$(tasks.get-image-built.results.VALUE)"
         - name: destImageURL
-          value: "docker://$(tasks.getpushpath.results.release-image-path):$(params.image-tag)"
+          value: "docker://$(tasks.getpushpath.results.VALUE):$(params.image-tag)"
         - name: srcTLSverify
+          value: "false"
+        - name: destTLSverify
           value: "false"
