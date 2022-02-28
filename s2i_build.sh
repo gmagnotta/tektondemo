@@ -66,7 +66,7 @@ if [ "$INCREMENTAL" = "true" ]; then
         rm ./artifacts.tar
     fi
 
-    buildah run $builder -- /bin/bash -c 'if [ -x "$SCRIPTS_URL/save-artifacts" ]; then $SCRIPTS_URL/save-artifacts ; fi' > ./artifacts.tar
+    buildah run $builder -- /bin/bash -c "if [ -x \"$SCRIPTS_URL/save-artifacts\" ]; then $SCRIPTS_URL/save-artifacts ; fi" > ./artifacts.tar
 
 fi
 
