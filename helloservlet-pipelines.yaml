@@ -109,12 +109,8 @@ spec:
           value: $(tasks.get-dev-path.results.VALUE)
         - name: CONTEXT
           value: "."
-        - name: S2I_ENVIRONMENT
-          value: "helloservlet-s2ienvironment"
         - name: INCREMENTAL
           value: "true"
-        - name: ENVIRONMENTS
-          value: ""
     - name: deploy
       taskRef:
         name: openshift-actions
