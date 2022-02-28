@@ -3,7 +3,7 @@
 # This script emulates an s2i build process performed exclusively with buildah.
 # Currently only builder images are supported.
 #
-# Version 0.0.1
+# Version 0.0.3
 #
 set -e
 
@@ -13,9 +13,6 @@ SCRIPTS_URL="/usr/local/s2i/"
 OUTPUT_IMAGE="helloservlet"
 INCREMENTAL=true
 CONTEXT_DIR="."
-
-#Define ENV variables that you want to inject, and list in ENVIRONMENTS separated by comma
-ENVIRONMENTS=""
 
 echo "Start"
 builder=$(buildah from $BUILDER_IMAGE)
@@ -31,22 +28,19 @@ if [ "$INCREMENTAL" = "true" ]; then
 
 fi
 
-COMMAND=""
+if [ -f "$CONTEXT_DIR/.s2i/environment" ]; then
+    COMMAND="buildah config "
 
-if [ -n "$ENVIRONMENTS" ]; then
-
-    COMMAND+="buildah config "
-
-    IFS=','; for word in $ENVIRONMENTS; do COMMAND+="--env $word=${!word} "; done
+    while IFS="" read -r line || [ -n "$line" ]
+    do
+      COMMAND+="--env $line "
+    done < $CONTEXT_DIR/.s2i/environment
 
     COMMAND+='$builder'
-
-fi
-
-if [ ! -z "$COMMAND" ]; then
     echo "Executing $COMMAND"
 
     eval "$COMMAND"
+
 fi
 
 buildah config --cmd $SCRIPTS_URL/run $builder
