@@ -4,8 +4,10 @@ set -e
 
 echo "Before assembling"
 
-echo "Deleting /deployments/ROOT.war"
-rm /deployments/ROOT.war
+if [ -f "/deployments/ROOT.war" ]; then
+  echo "Found /deployments/ROOT.war. Deleting"
+  rm /deployments/ROOT.war
+fi
 
 echo "invoking assemble"
 /usr/local/s2i/assemble
