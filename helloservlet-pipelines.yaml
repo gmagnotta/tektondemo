@@ -48,8 +48,12 @@ data:
     MAVEN_REPOS="nexus"
     NEXUS_MAVEN_REPO_ID="nexus"
     NEXUS_MAVEN_REPO_URL="http://nexus3:8081"
-    MAVEN_SETTINGS_XML="/home/jboss/.m2/settings.xml"
-    CUSTOM_INSTALL_DIRECTORIES="extensions"
+    NEXUS_MAVEN_REPO_USERNAME="myuser"
+    NEXUS_MAVEN_REPO_PASSWORD="mypass"
+    #MAVEN_MIRRORS="nexus"
+    #NEXUS_MAVEN_MIRROR_ID="nexus"
+    #NEXUS_MAVEN_MIRROR_OF="<![CDATA[*]]>"
+    #NEXUS_MAVEN_MIRROR_URL="http://nexus3:8081/"
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
