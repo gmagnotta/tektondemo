@@ -72,6 +72,23 @@ spec:
     referencePolicy:
       type: Local
 ---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: eap74-openjdk11-openshift-rhel8
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+  - annotations:
+      description: Red Hat JBoss EAP 7
+    from:
+      kind: DockerImage
+      name: registry.redhat.io/jboss-eap-7/eap74-openjdk11-openshift-rhel8
+    name: latest
+    referencePolicy:
+      type: Local
+---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
