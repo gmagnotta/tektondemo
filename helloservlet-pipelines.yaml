@@ -55,6 +55,23 @@ data:
     #NEXUS_MAVEN_MIRROR_OF="<![CDATA[*]]>"
     #NEXUS_MAVEN_MIRROR_URL="http://nexus3:8081/"
 ---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: jws56-openjdk11-openshift-rhel8
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+  - annotations:
+      description: Red Hat JBoss Web Server 5
+    from:
+      kind: DockerImage
+      name: registry.redhat.io/jboss-webserver-5/jws56-openjdk11-openshift-rhel8
+    name: latest
+    referencePolicy:
+      type: Local
+---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
@@ -106,7 +123,7 @@ spec:
           workspace: s2ienv
       params:
         - name: S2I_IMAGE
-          value: "registry.redhat.io/jboss-webserver-5/jws56-openjdk11-openshift-rhel8"
+          value: "image-registry.openshift-image-registry.svc:5000/dev2/jws56-openjdk11-openshift-rhel8"
         - name: TLSVERIFY
           value: "false"
         - name: IMAGE
